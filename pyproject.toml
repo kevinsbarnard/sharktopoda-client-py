@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "sharktopoda-client-py"
+name = "sharktopoda-client"
 version = "0.1.0"
 description = "Sharktopoda client API, translated to Python"
 authors = ["Kevin Barnard <kbarnard@mbari.org>"]
