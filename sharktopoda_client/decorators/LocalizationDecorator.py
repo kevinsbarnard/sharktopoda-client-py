@@ -1,0 +1,2 @@
+class LocalizationDecorator:
+    pass
