@@ -1,10 +1,14 @@
 from uuid import UUID
+from dataclasses import dataclass
+
+from dataclasses_json import dataclass_json
 
 
+@dataclass_json
+@dataclass
 class Video:
-    def __init__(self, uuid: UUID = None, url: str = None):
-        self.uuid = uuid
-        self.url = url
+    uuid: UUID = None
+    url: str = None
     
     def getUuid(self) -> UUID:
         return self.uuid

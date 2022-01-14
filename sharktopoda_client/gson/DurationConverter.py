@@ -6,4 +6,4 @@ class DurationConverter:
         return Duration.ofMillis(int(json_str))
 
     def serialize(self, duration: Duration, *_) -> str:
-        return duration.toMillis()
+        return str(duration.toMillis())
