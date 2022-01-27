@@ -24,4 +24,4 @@ class Message:
     video: Video = None
     
     def __str__(self) -> str:
-        return 'Message{' + 'action=' + self._action + ', localizations=' + str(self._localizations) + '}'
+        return 'Message{' + 'action=' + self.action + ', localizations=' + str(self.localizations) + '}'

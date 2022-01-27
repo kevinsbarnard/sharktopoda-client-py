@@ -46,8 +46,8 @@ class IO:
         if controller is None:
             controller = LocalizationController()
         self.controller = controller
-        # self.controller.getOutgoing().ofType(Message.class).subscribe(lcl -> queue.offer(lcl))
-        # self.selectionController = controller.copy()
+        self.controller.getOutgoing().subscribe(lambda l: self.queue.put(l))
+        self.selectionController = controller.copy()
         
         def outgoing():
             address = 'tcp://*:' + str(outgoingPort)
@@ -94,7 +94,7 @@ class IO:
                     topicAddress = socket.recv_string()
                     contents = socket.recv_string()
                     message = Message.from_json(contents)
-                    # controller.getIncoming().onNext(message)
+                    controller.getIncoming().on_next(message)
                 except zmq.ZMQError as e:
                     if e.errno == 156384765:
                         pass
@@ -105,3 +105,12 @@ class IO:
         
         self.incomingThread = Thread(target=incoming, daemon=True)
         self.incomingThread.start()
+
+    def publish(self, message: Message):
+        self.controller.getOutgoing().on_next(message)
+    
+    def close(self):
+        self.ok = False
+        self.context.destroy()
+        self.controller.getIncoming().on_completed()
+        self.controller.getOutgoing().on_completed()
