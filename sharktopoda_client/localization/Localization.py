@@ -40,11 +40,6 @@ class Localization:
             width=n.width,
             height=n.height
         )
-        
-    @localizationUuid.setter
-    def localizationUuid(self, localizationUuid_: UUID):
-        Preconditions.require(localizationUuid_ is not None, 'The localizationUuid can not be null')
-        self.localizationUuid = localizationUuid_
     
     def __eq__(self, o: object) -> bool:
         if self is o:

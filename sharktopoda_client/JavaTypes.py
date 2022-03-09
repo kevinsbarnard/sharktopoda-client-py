@@ -25,4 +25,4 @@ def SerializedName(name, default=MISSING):  # dark magic
 
 
 def randomString(length: int) -> str:
-    return ''.join(random.choices(string.ascii_letters + string.digits), k=length)
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))

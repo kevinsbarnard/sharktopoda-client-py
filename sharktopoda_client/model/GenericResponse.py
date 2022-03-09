@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from dataclasses_json import dataclass_json
 
 from sharktopoda_client.JavaTypes import Duration, InetAddress, SerializedName
 from sharktopoda_client.model.GenericCommand import GenericCommand
+from sharktopoda_client.model.Video import Video
 
 
 @dataclass_json
@@ -14,6 +15,7 @@ class GenericResponse:
     response: Optional[str] = None
     status: Optional[str] = None
     uuid: Optional[UUID] = None
+    videos: Optional[List[Video]] = None
     elapsedTime: Optional[Duration] = SerializedName('elapsed_time_millis', default=None)
     imageReferenceUuid: Optional[UUID] = None
     imageLocation: Optional[str] = None
@@ -42,3 +44,6 @@ class GenericResponse:
             response=response,
             uuid=cmd.uuid
         )
+    
+    def isResponseExpected(self) -> bool:
+        return bool(self.response)

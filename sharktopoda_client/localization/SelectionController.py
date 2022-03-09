@@ -12,7 +12,7 @@ class SelectionController:
         
         self._selected_localizations: List[Localization] = []
         
-        self._controller.subscribe(self._on_incoming)
+        self._controller.getIncoming().subscribe(self._on_incoming)
     
     def _on_incoming(self, message: Message):
         if message.action == MessageAction.ACTION_SELECT:

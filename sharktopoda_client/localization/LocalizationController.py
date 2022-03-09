@@ -1,8 +1,8 @@
-from logging import Logger
 from typing import List, Union
 from uuid import UUID
 
 from sharktopoda_client.IOBus import IOBus
+from sharktopoda_client.Log import get_logger
 from sharktopoda_client.localization.Localization import Localization
 from sharktopoda_client.localization.Message import Message, MessageAction
 from sharktopoda_client.localization.Preconditions import Preconditions
@@ -13,7 +13,7 @@ class LocalizationController(IOBus):
     def __init__(self):
         super().__init__()
         
-        self.log = Logger('LocalizationController')
+        self.log = get_logger('LocalizationController')
         
         self._localizations: List[Localization] = []
         
@@ -51,12 +51,12 @@ class LocalizationController(IOBus):
         for i in range(len(self._localizations)):
             b = self._localizations[i]
             if b.localizationUuid == a.localizationUuid:
-                self.log.debug('Replacing localization (uuid = ' + a.localizationUuid + ')')
+                self.log.debug('Replacing localization (uuid = ' + str(a.localizationUuid) + ')')
                 self._localizations[i] = a
                 exists = True
                 break
         if not exists:
-            self.log.debug('Adding localization (uuid = ' + a.localizationUuid + ')')
+            self.log.debug('Adding localization (uuid = ' + str(a.localizationUuid) + ')')
             self._localizations.append(a)
     
     def addLocalization(self, localization: Localization):
@@ -117,7 +117,7 @@ class LocalizationController(IOBus):
                 exists = True
                 break
         if not exists:
-            self.log.debug('A localizaiton with UUID of ' + a.localizationUuid + ' was not found. Unable to remove.')
+            self.log.debug('A localization with UUID of ' + a.localizationUuid + ' was not found. Unable to remove.')
         if msg is not None:
             self.log.debug('Removing localization (uuid = ' + a.localizationUuid + ')')
     

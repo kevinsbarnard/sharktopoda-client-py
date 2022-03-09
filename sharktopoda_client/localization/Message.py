@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
 
@@ -20,8 +20,8 @@ class MessageAction(Enum):
 @dataclass
 class Message:
     action: MessageAction
-    localizations: List[Localization] = []
+    localizations: List[Localization] = field(default_factory=list)
     video: Video = None
     
     def __str__(self) -> str:
-        return 'Message{' + 'action=' + self.action + ', localizations=' + str(self.localizations) + '}'
+        return 'Message{' + 'action=' + self.action.value + ', localizations=' + str(self.localizations) + '}'

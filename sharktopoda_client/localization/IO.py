@@ -2,15 +2,15 @@ import zmq
 import time
 import json
 import datetime
-from logging import Logger
-from typing import Any
 from threading import Thread, current_thread
 from queue import Queue
 
 from sharktopoda_client.JavaTypes import Duration, randomString
+from sharktopoda_client.Log import get_logger
 from sharktopoda_client.gson.DurationConverter import DurationConverter
 from sharktopoda_client.localization.Message import Message
 from sharktopoda_client.localization.LocalizationController import LocalizationController
+from sharktopoda_client.localization.SelectionController import SelectionController
 
 
 class IO:
@@ -34,7 +34,7 @@ class IO:
         controller: LocalizationController = None,
     ) -> None:
         self.ok: bool = True
-        self.log = Logger('IO')
+        self.log = get_logger('IO')
         
         self.context = zmq.Context()
         self.incomingPort = incomingPort
@@ -47,7 +47,7 @@ class IO:
             controller = LocalizationController()
         self.controller = controller
         self.controller.getOutgoing().subscribe(lambda l: self.queue.put(l))
-        self.selectionController = controller.copy()
+        self.selectionController = SelectionController(self.controller)
         
         def outgoing():
             address = 'tcp://*:' + str(outgoingPort)
@@ -66,6 +66,7 @@ class IO:
                     msg = self.queue.get(timeout=1)
                     if msg is not None:
                         json_str = self.gson.toJson(msg)
+                        print(json_str)
                         self.log.debug('Publishing message to \'{}\': \n{}'.format(outgoingTopic, json_str))
                         publisher.send_string(outgoingTopic, flags=zmq.SNDMORE)
                         publisher.send_json(msg, encoder=IO.gson)
