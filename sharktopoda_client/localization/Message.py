@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 
@@ -21,7 +21,7 @@ class MessageAction(Enum):
 class Message:
     action: MessageAction
     localizations: List[Localization] = field(default_factory=list)
-    video: Video = None
+    video: Optional[Video] = None
     
     def __str__(self) -> str:
         return 'Message{' + 'action=' + self.action.value + ', localizations=' + str(self.localizations) + '}'
