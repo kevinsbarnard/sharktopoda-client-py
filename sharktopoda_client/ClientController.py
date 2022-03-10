@@ -3,7 +3,6 @@ from typing import Awaitable, List, Optional
 from uuid import UUID
 from os import PathLike
 
-from sharktopoda_client.JavaTypes import Duration
 from sharktopoda_client.model.Video import Video
 from sharktopoda_client.model.FrameCapture import FrameCapture
 
@@ -116,25 +115,25 @@ class ClientController(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    def requestElapsedTime(self, videoUuid: UUID) -> Optional[Duration]:
+    def requestElapsedTime(self, videoUuid: UUID) -> Optional[int]:
         """
 
         :param videoUuid: 
         :type videoUuid: UUID
         :return: The current elapsed time into the video
-        :rtype: Optional[Duration]
+        :rtype: Optional[int]
         """
         raise NotImplementedError()
     
     @abstractmethod
-    def seekElapsedTime(self, videoUuid: UUID, elapsedTime: Duration) -> bool:
+    def seekElapsedTime(self, videoUuid: UUID, elapsedTime: int) -> bool:
         """
         Jumps to this point in the video
 
         :param videoUuid:
         :type videoUuid: UUID
         :param elapsedTime:
-        :type elapsedTime: Duration
+        :type elapsedTime: int
         :return:
         :rtype: bool
         """

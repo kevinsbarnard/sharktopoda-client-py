@@ -4,16 +4,15 @@ from dataclasses import dataclass
 
 from dataclasses_json import dataclass_json
 
-from sharktopoda_client.JavaTypes import Duration, SerializedName
-from sharktopoda_client.localization.Preconditions import Preconditions
+from sharktopoda_client.JavaTypes import SerializedName
 
 
 @dataclass_json
 @dataclass
 class Localization:
     concept: Optional[str] = None
-    elapsedTime: Optional[Duration] = SerializedName('elapsed_time_millis', default=None)
-    duration: Optional[Duration] = SerializedName('durationMillis', default=None)
+    elapsedTime: Optional[int] = SerializedName('elapsedTimeMillis', default=None)
+    duration: Optional[int] = SerializedName('durationMillis', default=None)
     videoReferenceUuid: Optional[UUID] = None
     annotationUuid: Optional[UUID] = None
     localizationUuid: Optional[UUID] = None
@@ -21,6 +20,7 @@ class Localization:
     y: Optional[int] = None
     width: Optional[int] = None
     height: Optional[int] = None
+    sourceId: Optional[str] = None
     
     def __post_init__(self):
         if self.localizationUuid is None:
@@ -56,6 +56,6 @@ class Localization:
         return 'Localization{' + \
             'concept=' + self.concept + '\'' + \
             ', elapsedTime=' + str(self.elapsedTime) + \
-            ', localizaationUuid=' + str(self.localizationUuid) + \
+            ', localizationUuid=' + str(self.localizationUuid) + \
             '}'
     

@@ -1,29 +1,16 @@
 import zmq
 import time
-import json
-import datetime
 from threading import Thread, current_thread
-from queue import Queue
+from queue import Empty, Queue
 
-from sharktopoda_client.JavaTypes import Duration, randomString
+from sharktopoda_client.JavaTypes import randomString
 from sharktopoda_client.Log import get_logger
-from sharktopoda_client.gson.DurationConverter import DurationConverter
 from sharktopoda_client.localization.Message import Message
 from sharktopoda_client.localization.LocalizationController import LocalizationController
 from sharktopoda_client.localization.SelectionController import SelectionController
 
 
 class IO:
-    class MessageEncoder(json.JSONEncoder):
-        def default(self, o):
-            if isinstance(o, datetime.datetime):
-                return o.strftime('%Y-%m-%dT%H:%M:%SZ')
-            elif isinstance(o, Duration):
-                return DurationConverter.serialize(o.toMillis())
-            else:
-                return json.JSONEncoder.default(self, o)
-    
-    gson = MessageEncoder()
 
     def __init__(
         self,
@@ -57,7 +44,7 @@ class IO:
             
             thread = current_thread()
             try:
-                time.sleep(1000)
+                time.sleep(1)
             except InterruptedError as e:
                 self.log.warn('ZeroMQ publisher thread was interrupted', e)
             
@@ -65,16 +52,17 @@ class IO:
                 try:
                     msg = self.queue.get(timeout=1)
                     if msg is not None:
-                        json_str = self.gson.toJson(msg)
-                        print(json_str)
-                        self.log.debug('Publishing message to \'{}\': \n{}'.format(outgoingTopic, json_str))
+                        json_str = msg.to_json()
+                        self.log.debug('Publishing message to \'{}\': {}'.format(outgoingTopic, json_str))
                         publisher.send_string(outgoingTopic, flags=zmq.SNDMORE)
-                        publisher.send_json(msg, encoder=IO.gson)
+                        publisher.send_string(json_str)
+                except Empty:
+                    pass
                 except InterruptedError as e:
                     self.log.warn('ZeroMQ publisher thread was interrupted', e)
                     self.ok = False
                 except Exception as e:
-                    self.log.warn('An exception was thrown while attempting to publish a localization', e)
+                    self.log.warn(f'An exception was thrown while attempting to publish a localization: {e}')
             
             self.log.info('Shutting down ZeroMQ publisher thread at {}'.format(address))
             publisher.close()

@@ -21,7 +21,6 @@ class MessageAction(Enum):
 class Message:
     action: MessageAction
     localizations: List[Localization] = field(default_factory=list)
-    video: Optional[Video] = None
     
     def __str__(self) -> str:
         return 'Message{' + 'action=' + self.action.value + ', localizations=' + str(self.localizations) + '}'
