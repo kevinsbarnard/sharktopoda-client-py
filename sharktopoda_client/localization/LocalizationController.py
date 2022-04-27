@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Set, Union
 from uuid import UUID
 
 from sharktopoda_client.IOBus import IOBus
@@ -15,7 +15,7 @@ class LocalizationController(IOBus):
         
         self.log = get_logger('LocalizationController')
         
-        self._localizations: List[Localization] = []
+        self._localizations: Set[Localization] = set()
         
         self._incoming.subscribe(self._on_incoming, self._on_error)
         
@@ -40,24 +40,19 @@ class LocalizationController(IOBus):
         self.log.warn('An error occurred on the incoming localization bus', e)
     
     def _add_or_replace_localizations_internal(self, localizations: List[Localization]):
-        for localization in localizations:
-            try:
-                self._add_or_replace_localization_internal(localization)
-            except Exception as e:
-                self.log.warn('Failed to add a localization that was missing required values.', e)
-
+        localizations = set(localizations)
+        self._localizations -= localizations
+        self._localizations |= localizations
+        # for localization in localizations:
+        #     self._add_or_replace_localization_internal(localization)
+        
     def _add_or_replace_localization_internal(self, a: Localization):
-        exists = False
-        for i in range(len(self._localizations)):
-            b = self._localizations[i]
-            if b.localizationUuid == a.localizationUuid:
-                self.log.debug('Replacing localization (uuid = ' + str(a.localizationUuid) + ')')
-                self._localizations[i] = a
-                exists = True
-                break
-        if not exists:
+        if a in self._localizations:
+            self._localizations.remove(a)
+            self.log.debug('Replacing localization (uuid = ' + str(a.localizationUuid) + ')')
+        else:
             self.log.debug('Adding localization (uuid = ' + str(a.localizationUuid) + ')')
-            self._localizations.append(a)
+        self._localizations.add(a)
     
     def addLocalization(self, localization: Localization):
         self.addLocalizations([localization])
