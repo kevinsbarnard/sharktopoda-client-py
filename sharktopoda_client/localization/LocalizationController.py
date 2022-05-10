@@ -40,11 +40,10 @@ class LocalizationController(IOBus):
         self.log.warn('An error occurred on the incoming localization bus', e)
     
     def _add_or_replace_localizations_internal(self, localizations: List[Localization]):
+        self.log.debug('Adding/replacing ' + str(len(localizations)) + ' localizations')
         localizations = set(localizations)
         self._localizations -= localizations
         self._localizations |= localizations
-        # for localization in localizations:
-        #     self._add_or_replace_localization_internal(localization)
         
     def _add_or_replace_localization_internal(self, a: Localization):
         if a in self._localizations:
@@ -96,25 +95,16 @@ class LocalizationController(IOBus):
         Preconditions.require(localization.localizationUuid is not None, 'Can not remove a localization without a localizationUuid')
 
     def _remove_localizations_internal(self, localizations: List[Localization]):
-        for localization in localizations:
-            try:
-                self._remove_localization_internal(localization)
-            except Exception as e:
-                self.log.warn('Failed to remove a localization that was missing required values.', e)
+        self.log.debug('Removing ' + str(len(localizations)) + ' localizations')
+        self._localizations -= set(localizations)
     
     def _remove_localization_internal(self, a: Localization):
-        exists = False
-        msg = None
-        for i in range(len(self._localizations)):
-            b = self._localizations[i]
-            if b.localizationUuid == a.localizationUuid:
-                self._localizations.pop(i)
-                exists = True
-                break
-        if not exists:
+        if a not in self._localizations:
             self.log.debug('A localization with UUID of ' + a.localizationUuid + ' was not found. Unable to remove.')
-        if msg is not None:
-            self.log.debug('Removing localization (uuid = ' + a.localizationUuid + ')')
+            return
+        
+        self.log.debug('Removing localization (uuid = ' + a.localizationUuid + ')')
+        self._localizations.remove(a)
     
     def clear(self):
         msg = Message(MessageAction.ACTION_CLEAR)
