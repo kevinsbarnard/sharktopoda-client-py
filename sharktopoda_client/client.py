@@ -35,16 +35,88 @@ class SharktopodaClient(LogMixin):
         self.rx_udp_server = rx_udp_server
 
         self._connected = False
-        self._video_open_state = {}
+        self._video_open_state = {}  # keyed by video UUID
         self._focused_video_info = None
         self._all_video_info = None
-        self._video_player_state = {}
+        self._video_player_state = {}  # keyed by video UUID
         self._frame_captures = []
-        self._uncommitted_localizations = {}
-        self._localizations = {}
-        self._selected_localizations = {}
+        self._uncommitted_localizations = {}  # keyed by localization UUID
+        self._localizations = {}  # keyed by localization UUID
+        self._selected_localizations = []
 
         self.rx_udp_server.receive_subject.subscribe(self._handle_message)
+        
+    @property
+    def connected(self) -> bool:
+        """
+        Get whether the client is connected to the server.
+
+        Returns:
+            Whether the client is connected to the server.
+        """
+        return self._connected
+    
+    def video_open_state(self) -> dict:
+        """
+        Get the video open state dict.
+
+        Returns:
+            The video open state dict.
+        """
+        return self._video_open_state
+    
+    def focused_video_info(self) -> Optional[VideoInfo]:
+        """
+        Get the focused video info.
+
+        Returns:
+            The focused video info, or None if there is no focused video info.
+        """
+        return self._focused_video_info
+    
+    def all_video_info(self) -> Optional[List[VideoInfo]]:
+        """
+        Get all video info.
+
+        Returns:
+            All video info, or None if there is no all video info.
+        """
+        return self._all_video_info
+    
+    def video_player_state(self) -> dict:
+        """
+        Get the video player state dict.
+        
+        Returns:
+            The video player state dict.
+        """
+    
+    def frame_captures(self) -> List[FrameCapture]:
+        """
+        Get the frame captures.
+        
+        Returns:
+            The frame captures.
+        """
+        return self._frame_captures
+    
+    def localizations(self) -> dict:
+        """
+        Get the localizations.
+        
+        Returns:
+            The localizations.
+        """
+        return self._localizations
+    
+    def selected_localizations(self) -> list:
+        """
+        Get the selected localizations.
+        
+        Returns:
+            The selected localizations.
+        """
+        return self._selected_localizations
 
     def _commit_localizations(self):
         self._localizations.update(self._uncommitted_localizations)
