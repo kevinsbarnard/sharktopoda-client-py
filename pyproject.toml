@@ -7,9 +7,7 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-dataclasses-json = "^0.5.4"
 Rx = "^3.2.0"
-zmq = "^0.0.0"
 
 [tool.poetry.dev-dependencies]
 
