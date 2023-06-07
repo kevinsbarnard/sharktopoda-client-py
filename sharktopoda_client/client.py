@@ -12,7 +12,7 @@ from typing import List, Optional
 from uuid import UUID
 from socket import socket, AF_INET, SOCK_DGRAM
 
-from rx.core.typing import Subject
+from rx.subject import Subject
 from rx.scheduler import EventLoopScheduler
 
 
@@ -79,6 +79,7 @@ class RxUDPServer:
             self._socket = socket(AF_INET, SOCK_DGRAM)
             self._socket.bind(('', self._receive_port))
             print("Opened UDP socket")
+        return self._socket
     
     @property
     def send_subject(self) -> Subject:
