@@ -2,251 +2,30 @@
 Sharktopoda 2 client.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
-import json
 from pathlib import Path
-from threading import Thread
 from typing import List, Optional
 from uuid import UUID
-from socket import socket, AF_INET, SOCK_DGRAM
-
-from rx.subject import Subject
-from rx.scheduler import EventLoopScheduler
 
 from sharktopoda_client.log import LogMixin
-
-
-class RxUDPServer(LogMixin):
-    """
-    ReactiveX UDP server. Handles sending and receiving UDP packets asynchronously via RxPy subjects.
-    """
-
-    def __init__(self, send_host: str, send_port: int, receive_port: int) -> None:
-        # UDP socket
-        self._socket = None
-        self._send_host = send_host
-        self._send_port = send_port
-        self._receive_port = receive_port
-
-        # Rx
-        self._send_subject = Subject()
-        self._receive_subject = Subject()
-        self._scheduler = EventLoopScheduler()
-
-        self._ok = True
-
-        def receive():
-            while self._ok:
-                try:
-                    # Block until we receive a datagram
-                    datagram, (host, port) = self.socket.recvfrom(4096)
-
-                    self.logger.debug(
-                        f"Received UDP datagram {datagram} from {host}:{port}"
-                    )
-
-                    if host != self._send_host:  # ignore data from other hosts
-                        continue
-
-                    # Decode the datagram
-                    json_data = datagram.decode('utf-8')
-                    data = json.loads(json_data)
-
-                    # Send the decoded data to the receive subject
-                    self._receive_subject.on_next(data)
-
-                except Exception as e:
-                    self.logger.error(f"Error while reading UDP datagram {e}")
-                    self._ok = False
-
-            if self._socket is not None:  # close socket if it exists
-                self.socket.close()
-                self._socket = None
-                self.logger.info("Closed UDP socket")
-
-        self._receiver_thread = Thread(target=receive, daemon=True)
-        self._receiver_thread.start()
-        self.logger.debug("Started UDP receiver thread")
-
-        self._send_subject.subscribe(self._send, scheduler=self._scheduler)
-
-    def _send(self, data: dict):
-        # Encode the data
-        json_data = json.dumps(data)
-        datagram = json_data.encode('utf-8')
-
-        # Send the packet
-        self.socket.sendto(datagram, (self._send_host, self._send_port))
-
-        self.logger.debug(
-            f"Sent UDP datagram {datagram} to {self._send_host}:{self._send_port}"
-        )
-
-    @property
-    def socket(self):
-        if self._socket is None:
-            self._socket = socket(AF_INET, SOCK_DGRAM)
-            host = ""  # listen on all interfaces
-            self._socket.bind((host, self._receive_port))
-            self.logger.info(f"Opened UDP socket on {host}:{self._receive_port}")
-        return self._socket
-
-    @property
-    def send_subject(self) -> Subject:
-        return self._send_subject
-
-    @property
-    def receive_subject(self) -> Subject:
-        return self._receive_subject
-
-
-class VideoOpenState(Enum):
-    CLOSED = 0
-    OPENING = 1
-    OPEN = 2
-
-
-class PlayStatus(str, Enum):
-    PLAYING = "playing"
-    SHUTTLING_FORWARD = "shuttling forward"
-    SHUTTLING_REVERSE = "shuttling reverse"
-    PAUSED = "paused"
-
-
-class Serializable(ABC):
-    """
-    Serializable interface. Supports encoding and decoding to and from a dictionary.
-    """
-
-    @abstractmethod
-    def encode(self) -> dict:
-        raise NotImplementedError
-
-    @classmethod
-    @abstractmethod
-    def decode(cls, data: dict):
-        raise NotImplementedError
-
-
-@dataclass
-class VideoPlayerState(Serializable):
-    status: PlayStatus
-    rate: float
-
-    def encode(self) -> dict:
-        return {"status": self.status.value, "rate": self.rate}
-
-    @classmethod
-    def decode(cls, video_player_state: dict) -> "VideoPlayerState":
-        return cls(
-            status=PlayStatus(video_player_state["status"]),
-            rate=video_player_state["rate"],
-        )
-
-
-@dataclass
-class VideoInfo:
-    uuid: UUID
-    url: str
-    duration_millis: int
-    frame_rate: float
-    is_key: bool
-
-    def encode(self) -> dict:
-        return {
-            "uuid": str(self.uuid),
-            "url": self.url,
-            "durationMillis": self.duration_millis,
-            "frameRate": self.frame_rate,
-            "isKey": self.is_key,
-        }
-
-    @classmethod
-    def decode(cls, video_info: dict) -> "VideoInfo":
-        return cls(
-            uuid=UUID(video_info["uuid"]),
-            url=video_info["url"],
-            duration_millis=video_info["durationMillis"],
-            frame_rate=video_info["frameRate"],
-            is_key=video_info["isKey"],
-        )
-
-
-@dataclass
-class FrameCapture:
-    uuid: UUID
-    elapsed_time_millis: int
-    image_reference_uuid: UUID
-    image_location: Path
-
-    def encode(self) -> dict:
-        return {
-            "uuid": str(self.uuid),
-            "elapsedTimeMillis": self.elapsed_time_millis,
-            "imageReferenceUuid": str(self.image_reference_uuid),
-            "imageLocation": str(self.image_location),
-        }
-
-    @classmethod
-    def decode(cls, frame_capture: dict) -> "FrameCapture":
-        return cls(
-            uuid=UUID(frame_capture["uuid"]),
-            elapsed_time_millis=frame_capture["elapsedTimeMillis"],
-            image_reference_uuid=UUID(frame_capture["imageReferenceUuid"]),
-            image_location=Path(frame_capture["imageLocation"]),
-        )
-
-
-@dataclass
-class Localization:
-    uuid: UUID
-    concept: str
-    elapsed_time_millis: int
-    x: int
-    y: int
-    width: int
-    height: int
-    duration_millis: int = 0
-    color: Optional[str] = None
-
-    def encode(self) -> dict:
-        data = {
-            "uuid": str(self.uuid),
-            "concept": self.concept,
-            "elapsedTimeMillis": self.elapsed_time_millis,
-            "durationMillis": self.duration_millis,
-            "x": self.x,
-            "y": self.y,
-            "width": self.width,
-            "height": self.height,
-        }
-
-        if self.color is not None:
-            data["color"] = self.color
-
-        return data
-
-    @classmethod
-    def decode(cls, localization: dict) -> "Localization":
-        return cls(
-            uuid=UUID(localization["uuid"]),
-            concept=localization["concept"],
-            elapsed_time_millis=localization["elapsedTimeMillis"],
-            duration_millis=localization["durationMillis"],
-            x=localization["x"],
-            y=localization["y"],
-            width=localization["width"],
-            height=localization["height"],
-            color=localization["color"] if "color" in localization else None,
-        )
+from sharktopoda_client.udp import RxUDPServer
+from sharktopoda_client.dto import (
+    FrameCapture,
+    VideoInfo,
+    Localization,
+    VideoPlayerState,
+)
 
 
 class SharktopodaClient(LogMixin):
     """
     Sharktopoda client. Manages local state and communication with the server (application).
     """
+    
+    class VideoOpenState(Enum):
+        CLOSED = 0
+        OPENING = 1
+        OPEN = 2
 
     def __init__(self, rx_udp_server: RxUDPServer):
         """
@@ -376,7 +155,7 @@ class SharktopodaClient(LogMixin):
         """
         self.send({"command": "open", "uuid": str(uuid), "url": url})
 
-        self._opened_video_state[uuid] = VideoOpenState.OPENING
+        self._opened_video_state[uuid] = SharktopodaClient.VideoOpenState.OPENING
 
     def _on_open_response(self, response: dict):
         """
@@ -394,7 +173,7 @@ class SharktopodaClient(LogMixin):
         if response["status"] == "ok":
             uuid = UUID(response["uuid"])
             self.logger.info(f"Opened video {uuid}")
-            self._video_open_state[uuid] = VideoOpenState.OPEN
+            self._video_open_state[uuid] = SharktopodaClient.VideoOpenState.OPEN
         else:
             cause = response["cause"]
             self.logger.error(f"Failed to open video: {cause}")
@@ -412,7 +191,7 @@ class SharktopodaClient(LogMixin):
         if response["status"] == "ok":
             uuid = UUID(response["uuid"])
             self.logger.info(f"Closed video {uuid}")
-            self._video_open_state[uuid] = VideoOpenState.CLOSED
+            self._video_open_state[uuid] = SharktopodaClient.VideoOpenState.CLOSED
         else:
             cause = response["cause"]
             self.logger.error(f"Failed to close video: {cause}")
@@ -446,7 +225,7 @@ class SharktopodaClient(LogMixin):
         Handle a request information response.
         """
         if response["status"] == "ok":
-            self._focused_video_info = self._get_video_info(response)
+            self._focused_video_info = VideoInfo.decode(response)
         else:
             cause = response["cause"]
             self.logger.error(f"Failed to request information: {cause}")
@@ -464,7 +243,7 @@ class SharktopodaClient(LogMixin):
         Handle a request all information response.
         """
         if response["status"] == "ok":
-            self._all_video_info = list(map(self._get_video_info, response["videos"]))
+            self._all_video_info = list(map(VideoInfo.decode, response["videos"]))
         else:
             cause = response["cause"]
             self.logger.error(f"Failed to request all information: {cause}")
@@ -520,7 +299,7 @@ class SharktopodaClient(LogMixin):
         """
         if response["status"] == "ok":
             uuid = UUID(response["uuid"])
-            self._video_player_state[uuid] = self._get_video_player_state(response)
+            self._video_player_state[uuid] = VideoPlayerState.decode(response)
         else:
             cause = response["cause"]
             self.logger.error(f"Failed to request player state: {cause}")
@@ -595,7 +374,7 @@ class SharktopodaClient(LogMixin):
         Handle a frame capture done response.
         """
         if response["status"] == "ok":
-            frame_capture = self._get_frame_capture(response)
+            frame_capture = FrameCapture.decode(response)
             self._frame_captures.append(frame_capture)
             self.logger.info(
                 f"Captured frame {frame_capture.image_reference_uuid} in video {frame_capture.uuid}"
