@@ -50,6 +50,6 @@ class LogMixin:
         Returns:
             The logger for a class.
         """
-        if self._logger is None:  # lazy instantiation
+        if getattr(self, "_logger", None) is None:  # lazy instantiation
             self._logger = get_logger(self.__class__.__name__)
         return self._logger
