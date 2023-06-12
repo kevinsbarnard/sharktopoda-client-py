@@ -44,7 +44,7 @@ class SharktopodaClient(LogMixin):
         self._localizations = {}  # keyed by localization UUID
         self._selected_localizations = []
 
-        self.rx_udp_server.receive_subject.subscribe(self._handle_message)
+        self.rx_udp_server.receive_subject.subscribe(self._handle_message, scheduler=self.rx_udp_server._scheduler)
         
     @property
     def connected(self) -> bool:
@@ -158,7 +158,7 @@ class SharktopodaClient(LogMixin):
             "ping": self._on_ping_command,
         }.get(
             command_type,
-            lambda: self.logger.warning(f"Unknown command type: {command_type}"),
+            lambda _: self.logger.warning(f"Unknown command type: {command_type}"),
         )(command)
 
     def _handle_response(self, response: dict):
@@ -192,7 +192,7 @@ class SharktopodaClient(LogMixin):
             "select localizations": self._on_select_localizations_response,
         }.get(
             response_type,
-            lambda: self.logger.warning(f"Unknown response type: {response_type}"),
+            lambda _: self.logger.warning(f"Unknown response type: {response_type}"),
         )(
             response
         )
@@ -227,7 +227,7 @@ class SharktopodaClient(LogMixin):
         """
         self.send({"command": "open", "uuid": str(uuid), "url": url})
 
-        self._opened_video_state[uuid] = SharktopodaClient.VideoOpenState.OPENING
+        self._video_open_state[uuid] = SharktopodaClient.VideoOpenState.OPENING
 
     def _on_open_response(self, response: dict):
         """

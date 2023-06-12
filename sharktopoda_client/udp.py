@@ -29,27 +29,24 @@ class RxUDPServer(LogMixin):
 
         def receive():
             while self._ok:
-                try:
-                    # Block until we receive a datagram
-                    datagram, (host, port) = self.socket.recvfrom(4096)
+                # try:
+                # Block until we receive a datagram
+                datagram, (host, port) = self.socket.recvfrom(4096)
 
-                    self.logger.debug(
-                        f"Received UDP datagram {datagram} from {host}:{port}"
-                    )
+                self.logger.debug(
+                    f"Received UDP datagram {datagram} from {host}:{port}"
+                )
 
-                    if host != self._send_host:  # ignore data from other hosts
-                        continue
+                # Decode the datagram
+                json_data = datagram.decode('utf-8')
+                data = json.loads(json_data)
 
-                    # Decode the datagram
-                    json_data = datagram.decode('utf-8')
-                    data = json.loads(json_data)
+                # Send the decoded data to the receive subject
+                self._receive_subject.on_next(data)
 
-                    # Send the decoded data to the receive subject
-                    self._receive_subject.on_next(data)
-
-                except Exception as e:
-                    self.logger.error(f"Error while reading UDP datagram {e}")
-                    self._ok = False
+                # except Exception as e:
+                #     self.logger.error(f"Error while reading UDP datagram: {e}")
+                #     self._ok = False
 
             if self._socket is not None:  # close socket if it exists
                 self.socket.close()
