@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sharktopoda_client.log import LogMixin
-from sharktopoda_client.udp import RxUDPServer
+from sharktopoda_client.udp import RxUDPServer, UDPServer
 from sharktopoda_client.dto import (
     FrameCapture,
     VideoInfo,
@@ -583,3 +583,68 @@ class SharktopodaClient(LogMixin):
         else:  # No recourse for unexpected failure. Just log it for now.
             cause = response["cause"]
             self.logger.error(f"Failed to select localizations: {cause}")
+
+
+class SynchronousSharktopodaClient(LogMixin):
+    """
+    Synchronous Sharktopoda 2 client.
+    """
+    
+    def __init__(self, udp_server: UDPServer):
+        self._udp_server = udp_server
+        
+    def _send(self, data: dict):
+        """
+        Send data to the server.
+        """
+        self._udp_server.send(data)
+    
+    def _receive(self, timeout: int = 5) -> dict:
+        """
+        Receive data from the server.
+        """
+        return self._udp_server.receive(timeout=timeout)
+    
+    def _send_and_receive(self, data: dict, timeout: int = 5) -> dict:
+        """
+        Send data to the server and receive a response.
+        """
+        self._send(data)
+        return self._receive(timeout=timeout)
+    
+    def connect(self):
+        """
+        Connect to the server.
+        """
+        # Send the connect command and wait for the response
+        connect_command = {
+            "command": "connect",
+            "port": self._udp_server.receive_port
+        }
+        try:
+            connect_response = self._send_and_receive(connect_command)
+        except TimeoutError:
+            self.logger.error("Connect to Sharktopoda 2 timed out")
+            return False
+        
+        # Check the response status
+        if connect_response["status"] != "ok":
+            self.logger.error("Failed to connect to Sharktopoda 2")
+        
+        # Wait for a ping command
+        try:
+            ping_command = self._receive()
+        except TimeoutError:
+            self.logger.error("No ping received from Sharktopoda 2")
+            return False
+        
+        # Send the ping response
+        ping_response = {
+            "response": "ping",
+            "status": "ok"
+        }
+        self._send(ping_response)
+        
+        # Connected!
+        self.logger.info("Connected to Sharktopoda 2")
+        return True
