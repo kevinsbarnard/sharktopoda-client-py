@@ -87,3 +87,78 @@ class RxUDPServer(LogMixin):
     @property
     def receive_subject(self) -> Subject:
         return self._receive_subject
+
+
+class UDPServer(LogMixin):
+    """
+    UDP server. Wrapper for UDP socket.
+    """
+    
+    def __init__(self, send_host: str, send_port: int, receive_port: int) -> None:
+        # UDP socket
+        self._socket = None
+        self._send_host = send_host
+        self._send_port = send_port
+        self._receive_port = receive_port
+    
+    def send(self, data: dict) -> None:
+        """
+        Send a UDP datagram to the send host and port.
+        
+        Args:
+            data: Data to send.
+        """
+        # Encode the data
+        json_data = json.dumps(data)
+        datagram = json_data.encode('utf-8')
+
+        # Send the packet
+        self.socket.sendto(datagram, (self._send_host, self._send_port))
+
+        self.logger.debug(
+            f"Sent UDP datagram {datagram} to {self._send_host}:{self._send_port}"
+        )
+    
+    def receive(self, timeout: int = 5) -> dict:
+        """
+        Receive a UDP datagram. Blocks until a datagram is received.
+        
+        Returns:
+            dict: Decoded data.
+        """
+        # Block until we receive a datagram
+        self.socket.settimeout(timeout)
+        try:
+            datagram, (host, port) = self.socket.recvfrom(4096)
+        except timeout:
+            raise TimeoutError("Timed out waiting for UDP datagram")
+
+        self.logger.debug(
+            f"Received UDP datagram {datagram} from {host}:{port}"
+        )
+        
+        # Decode the datagram
+        json_data = datagram.decode('utf-8')
+        data = json.loads(json_data)
+        return data
+    
+    @property
+    def send_host(self) -> str:
+        return self._send_host
+    
+    @property
+    def send_port(self) -> int:
+        return self._send_port
+    
+    @property
+    def receive_port(self) -> int:
+        return self._receive_port
+    
+    @property
+    def socket(self):
+        if self._socket is None:
+            self._socket = socket(AF_INET, SOCK_DGRAM)
+            host = ""  # listen on all interfaces
+            self._socket.bind((host, self._receive_port))
+            self.logger.info(f"Opened UDP socket on {host}:{self._receive_port}")
+        return self._socket
