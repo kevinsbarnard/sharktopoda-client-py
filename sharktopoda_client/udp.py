@@ -8,6 +8,13 @@ from rx.scheduler import EventLoopScheduler
 from sharktopoda_client.log import LogMixin
 
 
+class Timeout(Exception):
+    """
+    Exception raised when a UDP receive timeout occurs.
+    """
+    pass
+
+
 class RxUDPServer(LogMixin):
     """
     ReactiveX UDP server. Handles sending and receiving UDP packets asynchronously via RxPy subjects.

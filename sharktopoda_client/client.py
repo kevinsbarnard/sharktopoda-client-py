@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sharktopoda_client.log import LogMixin
-from sharktopoda_client.udp import RxUDPServer, UDPServer
+from sharktopoda_client.udp import RxUDPServer, Timeout, UDPServer
 from sharktopoda_client.dto import (
     FrameCapture,
     VideoInfo,
@@ -612,9 +612,12 @@ class SynchronousSharktopodaClient(LogMixin):
         self._send(data)
         return self._receive(timeout=timeout)
     
-    def connect(self):
+    def connect(self) -> bool:
         """
         Connect to the server.
+        
+        Returns:
+            True if the connection was successful, False otherwise.
         """
         # Send the connect command and wait for the response
         connect_command = {
@@ -623,7 +626,7 @@ class SynchronousSharktopodaClient(LogMixin):
         }
         try:
             connect_response = self._send_and_receive(connect_command)
-        except TimeoutError:
+        except Timeout:
             self.logger.error("Connect to Sharktopoda 2 timed out")
             return False
         
@@ -631,20 +634,42 @@ class SynchronousSharktopodaClient(LogMixin):
         if connect_response["status"] != "ok":
             self.logger.error("Failed to connect to Sharktopoda 2")
         
-        # Wait for a ping command
-        try:
-            ping_command = self._receive()
-        except TimeoutError:
-            self.logger.error("No ping received from Sharktopoda 2")
-            return False
-        
-        # Send the ping response
-        ping_response = {
-            "response": "ping",
-            "status": "ok"
-        }
-        self._send(ping_response)
-        
         # Connected!
         self.logger.info("Connected to Sharktopoda 2")
+        return True
+    
+    def open(self, uuid: UUID, url: str) -> bool:
+        """
+        Open a video.
+        
+        Args:
+            uuid: The UUID of the video.
+            url: The URL of the video.
+        
+        Returns:
+            True if the video was opened successfully, False otherwise.
+        """
+        open_command = {
+            "command": "open",
+            "uuid": str(uuid),
+            "url": url
+        }
+        open_response = self._send_and_receive(open_command)
+        
+        # Check the response status
+        if open_response["status"] != "ok":
+            self.logger.error("Failed to initiate open video")
+            return False
+        
+        # Wait for open done response
+        open_done_response = self._receive(timeout=20)
+        
+        # Check the response status
+        if open_done_response["status"] != "ok":
+            cause = open_done_response["cause"]
+            self.logger.error(f"Failed to open video: {cause}")
+            return False
+        
+        opened_uuid = open_done_response["uuid"]
+        self.logger.info(f"Opened video {opened_uuid}")
         return True
