@@ -5,9 +5,9 @@ Sharktopoda 2 data transfer objects.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 from uuid import UUID
-from pathlib import Path
 
 
 class Serializable(ABC):

@@ -5,14 +5,11 @@ Sharktopoda 2 client.
 from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
+
+from sharktopoda_client.dto import (FrameCapture, Localization, VideoInfo,
+                                    VideoPlayerState)
 from sharktopoda_client.log import LogMixin
 from sharktopoda_client.udp import Timeout, UDPClient, UDPServer
-from sharktopoda_client.dto import (
-    FrameCapture,
-    VideoInfo,
-    Localization,
-    VideoPlayerState,
-)
 
 
 class SharktopodaClient(LogMixin):

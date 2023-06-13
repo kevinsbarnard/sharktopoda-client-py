@@ -1,6 +1,6 @@
 import json
+from socket import AF_INET6, SOCK_DGRAM, socket
 from threading import Thread
-from socket import socket, AF_INET6, SOCK_DGRAM
 
 from sharktopoda_client.log import LogMixin
 

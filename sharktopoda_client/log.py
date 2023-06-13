@@ -4,7 +4,6 @@ Logging utilities.
 
 import logging
 
-
 FORMATTER = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 STREAM_HANDLER = logging.StreamHandler()
 STREAM_HANDLER.setFormatter(FORMATTER)
