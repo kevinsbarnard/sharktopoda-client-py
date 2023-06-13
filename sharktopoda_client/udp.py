@@ -1,9 +1,6 @@
 import json
 from threading import Thread
-from socket import socket, AF_INET, SOCK_DGRAM
-
-from rx.subject import Subject
-from rx.scheduler import EventLoopScheduler
+from socket import socket, AF_INET6, SOCK_DGRAM
 
 from sharktopoda_client.log import LogMixin
 
@@ -15,157 +12,149 @@ class Timeout(Exception):
     pass
 
 
-class RxUDPServer(LogMixin):
+class EphemeralSocket:
     """
-    ReactiveX UDP server. Handles sending and receiving UDP packets asynchronously via RxPy subjects.
+    Ephemeral socket context manager. Creates a new socket for a send/receive operation.
     """
-
-    def __init__(self, send_host: str, send_port: int, receive_port: int) -> None:
-        # UDP socket
+    def __init__(self) -> None:
         self._socket = None
-        self._send_host = send_host
-        self._send_port = send_port
-        self._receive_port = receive_port
-
-        # Rx
-        self._send_subject = Subject()
-        self._receive_subject = Subject()
-        self._scheduler = EventLoopScheduler()
-
-        self._ok = True
-
-        def receive():
-            while self._ok:
-                # try:
-                # Block until we receive a datagram
-                datagram, (host, port) = self.socket.recvfrom(4096)
-
-                self.logger.debug(
-                    f"Received UDP datagram {datagram} from {host}:{port}"
-                )
-
-                # Decode the datagram
-                json_data = datagram.decode('utf-8')
-                data = json.loads(json_data)
-
-                # Send the decoded data to the receive subject
-                self._receive_subject.on_next(data)
-
-                # except Exception as e:
-                #     self.logger.error(f"Error while reading UDP datagram: {e}")
-                #     self._ok = False
-
-            if self._socket is not None:  # close socket if it exists
-                self.socket.close()
-                self._socket = None
-                self.logger.info("Closed UDP socket")
-
-        self._receiver_thread = Thread(target=receive, daemon=True)
-        self._receiver_thread.start()
-        self.logger.debug("Started UDP receiver thread")
-
-        self._send_subject.subscribe(self._send, scheduler=self._scheduler)
-
-    def _send(self, data: dict):
-        # Encode the data
-        json_data = json.dumps(data)
-        datagram = json_data.encode('utf-8')
-
-        # Send the packet
-        self.socket.sendto(datagram, (self._send_host, self._send_port))
-
-        self.logger.debug(
-            f"Sent UDP datagram {datagram} to {self._send_host}:{self._send_port}"
-        )
-
-    @property
-    def socket(self):
-        if self._socket is None:
-            self._socket = socket(AF_INET, SOCK_DGRAM)
-            host = ""  # listen on all interfaces
-            self._socket.bind((host, self._receive_port))
-            self.logger.info(f"Opened UDP socket on {host}:{self._receive_port}")
+    
+    def __enter__(self):
+        self._socket = socket(AF_INET6, SOCK_DGRAM)
         return self._socket
-
-    @property
-    def send_subject(self) -> Subject:
-        return self._send_subject
-
-    @property
-    def receive_subject(self) -> Subject:
-        return self._receive_subject
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._socket.close()
 
 
 class UDPServer(LogMixin):
     """
-    UDP server. Wrapper for UDP socket.
+    IPv6 UDP server.
     """
     
-    def __init__(self, send_host: str, send_port: int, receive_port: int) -> None:
-        # UDP socket
+    def __init__(self, port: int, handler: callable) -> None:
+        self._port = port
+        self._handler = handler
+        
         self._socket = None
-        self._send_host = send_host
-        self._send_port = send_port
-        self._receive_port = receive_port
-    
-    def send(self, data: dict) -> None:
-        """
-        Send a UDP datagram to the send host and port.
-        
-        Args:
-            data: Data to send.
-        """
-        # Encode the data
-        json_data = json.dumps(data)
-        datagram = json_data.encode('utf-8')
-
-        # Send the packet
-        self.socket.sendto(datagram, (self._send_host, self._send_port))
-
-        self.logger.debug(
-            f"Sent UDP datagram {datagram} to {self._send_host}:{self._send_port}"
-        )
-    
-    def receive(self, timeout: int = 5) -> dict:
-        """
-        Receive a UDP datagram. Blocks until a datagram is received.
-        
-        Returns:
-            dict: Decoded data.
-        """
-        # Block until we receive a datagram
-        self.socket.settimeout(timeout)
-        try:
-            datagram, (host, port) = self.socket.recvfrom(4096)
-        except timeout:
-            raise TimeoutError("Timed out waiting for UDP datagram")
-
-        self.logger.debug(
-            f"Received UDP datagram {datagram} from {host}:{port}"
-        )
-        
-        # Decode the datagram
-        json_data = datagram.decode('utf-8')
-        data = json.loads(json_data)
-        return data
+        self._thread = None
+        self._ok = True
     
     @property
-    def send_host(self) -> str:
-        return self._send_host
+    def port(self) -> int:
+        """
+        The port the server is listening on.
+        """
+        return self._port
     
     @property
-    def send_port(self) -> int:
-        return self._send_port
+    def ok(self) -> bool:
+        """
+        Whether the server is running.
+        """
+        return self._ok
     
-    @property
-    def receive_port(self) -> int:
-        return self._receive_port
+    def _spin(self) -> None:
+        """
+        Server thread main loop.
+        """
+        self.logger.info("UDP server thread started")
+        
+        while self._ok:
+            # Receive
+            request_bytes, addr = self.socket.recvfrom(4096)
+            self.logger.debug("Received UDP datagram {data} from {addr}")
+            
+            # Decode
+            request_json = request_bytes.decode("utf-8")
+            request_data = json.loads(request_json)
+            
+            # Handle
+            try:
+                response_data = self._handler(request_data, addr)
+            except Exception as e:
+                self.logger.error(f"Error while handling UDP request: {e}")
+                self._ok = False
+                break
+            
+            # Encode
+            response_json = json.dumps(response_data)
+            response_bytes = response_json.encode("utf-8")
+            
+            # Send
+            self.socket.sendto(response_bytes, addr)
+        
+        self.logger.info("UDP server thread exiting")
+        
+    
+    def start(self) -> None:
+        """
+        Start the UDP server.
+        """
+        self._ok = True
+        self._thread = Thread(target=self._spin, daemon=True)
+        self._thread.start()
+    
+    def stop(self) -> None:
+        """
+        Stop the UDP server.
+        """
+        self._ok = False
     
     @property
     def socket(self):
+        """
+        The UDP socket. Lazy-initialized.
+        """
         if self._socket is None:
-            self._socket = socket(AF_INET, SOCK_DGRAM)
+            self._socket = socket(AF_INET6, SOCK_DGRAM)
             host = ""  # listen on all interfaces
-            self._socket.bind((host, self._receive_port))
-            self.logger.info(f"Opened UDP socket on {host}:{self._receive_port}")
+            self._socket.bind((host, self._port))
+            self.logger.info(f"Opened UDP socket on {host}:{self._port}")
         return self._socket
+    
+    def __del__(self):
+        if self._socket is not None:
+            self._socket.close()
+            self.logger.info("Closed UDP socket")
+
+
+class UDPClient(LogMixin):
+    """
+    IPv6 UDP client. Sends and receives data encoded as JSON.
+    """
+    
+    def __init__(self, server_host: str, server_port: int, buffer_size: int = 4096) -> None:
+        self._server_host = server_host
+        self._server_port = server_port
+        
+        self._buffer_size = buffer_size
+    
+    def request(self, data: dict) -> dict:
+        """
+        Issue a request to the UDP server.
+        
+        Args:
+            data: Data to send.
+        
+        Returns:
+            dict: Response data.
+        """
+        # Encode
+        data_json = json.dumps(data)
+        data_bytes = data_json.encode("utf-8")
+        
+        with EphemeralSocket() as sock:
+            # Send
+            sock.sendto(data_bytes, (self._server_host, self._server_port))
+            self.logger.debug(f"Sent UDP datagram {data} to {self._server_host}:{self._server_port}")
+            
+            # Receive
+            response_data_bytes, addr = sock.recvfrom(self._buffer_size)
+            self.logger.debug(f"Received UDP datagram {data} from {addr}")
+        
+        # Decode
+        response_data_json = response_data_bytes.decode("utf-8")
+        response_data_dict = json.loads(response_data_json)
+            
+        return response_data_dict
