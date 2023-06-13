@@ -352,4 +352,116 @@ class SharktopodaClient(LogMixin):
             cause = frame_capture_response.get("cause", None)
             self.logger.error(f"Failed to initiate frame capture: {cause}")
             return
+    
+    def add_localizations(self, uuid: UUID, localizations: List[Localization]):
+        """
+        Add localizations to a video.
+        
+        Args:
+            uuid: The UUID of the video.
+            localizations: The localizations to add.
+        """
+        add_localizations_command = {
+            "command": "add localizations",
+            "uuid": str(uuid),
+            "localizations": list(map(Localization.encode, localizations))
+        }
+        add_localizations_response = self._request(add_localizations_command)
+        
+        # Check the response status
+        if add_localizations_response["status"] != "ok":
+            cause = add_localizations_response.get("cause", None)
+            self.logger.error(f"Failed to add localizations: {cause}")
+            return
+        
+        self.logger.info(f"Added {len(localizations)} localizations to video {uuid}")
+
+    def remove_localizations(self, uuid: UUID, localization_uuids: List[UUID]):
+        """
+        Remove localizations from a video.
+        
+        Args:
+            uuid: The UUID of the video.
+            localization_uuids: The UUIDs of the localizations to remove.
+        """
+        remove_localizations_command = {
+            "command": "remove localizations",
+            "uuid": str(uuid),
+            "localizations": list(map(str, localization_uuids))
+        }
+        remove_localizations_response = self._request(remove_localizations_command)
+        
+        # Check the response status
+        if remove_localizations_response["status"] != "ok":
+            cause = remove_localizations_response.get("cause", None)
+            self.logger.error(f"Failed to remove localizations: {cause}")
+            return
+        
+        self.logger.info(f"Removed {len(localization_uuids)} localizations from video {uuid}")
+    
+    def update_localizations(self, uuid: UUID, localizations: List[Localization]):
+        """
+        Update localizations of a video.
+        
+        Args:
+            uuid: The UUID of the video.
+            localizations: The localizations to update.
+        """
+        update_localizations_command = {
+            "command": "update localizations",
+            "uuid": str(uuid),
+            "localizations": list(map(Localization.encode, localizations))
+        }
+        update_localizations_response = self._request(update_localizations_command)
+        
+        # Check the response status
+        if update_localizations_response["status"] != "ok":
+            cause = update_localizations_response.get("cause", None)
+            self.logger.error(f"Failed to update localizations: {cause}")
+            return
+        
+        self.logger.info(f"Updated {len(localizations)} localizations of video {uuid}")
+    
+    def clear_localizations(self, uuid: UUID):
+        """
+        Clear all localizations of a video.
+        
+        Args:
+            uuid: The UUID of the video.
+        """
+        clear_localizations_command = {
+            "command": "clear localizations",
+            "uuid": str(uuid)
+        }
+        clear_localizations_response = self._request(clear_localizations_command)
+        
+        # Check the response status
+        if clear_localizations_response["status"] != "ok":
+            cause = clear_localizations_response.get("cause", None)
+            self.logger.error(f"Failed to clear localizations: {cause}")
+            return
+        
+        self.logger.info(f"Cleared localizations of video {uuid}")
+    
+    def select_localizations(self, uuid: UUID, localization_uuids: List[UUID]):
+        """
+        Select localizations of a video.
+        
+        Args:
+            uuid: The UUID of the video.
+            localization_uuids: The UUIDs of the localizations to select.
+        """
+        select_localizations_command = {
+            "command": "select localizations",
+            "uuid": str(uuid),
+            "localizations": list(map(str, localization_uuids))
+        }
+        select_localizations_response = self._request(select_localizations_command)
+        
+        # Check the response status
+        if select_localizations_response["status"] != "ok":
+            self.logger.error(f"Failed to select localizations")
+            return
+        
+        self.logger.info(f"Selected {len(localization_uuids)} localizations of video {uuid}")
 
