@@ -77,6 +77,9 @@ class UDPServer(LogMixin):
                 self._ok = False
                 break
             
+            if response_data is None:  # no response
+                continue
+            
             # Encode
             response_json = json.dumps(response_data)
             response_bytes = response_json.encode("utf-8")
