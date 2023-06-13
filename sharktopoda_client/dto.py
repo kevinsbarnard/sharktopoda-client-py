@@ -27,13 +27,12 @@ class Serializable(ABC):
 
 @dataclass
 class VideoPlayerState(Serializable):
-    
     class PlayStatus(str, Enum):
         PLAYING = "playing"
         SHUTTLING_FORWARD = "shuttling forward"
         SHUTTLING_REVERSE = "shuttling reverse"
         PAUSED = "paused"
-    
+
     status: PlayStatus
     rate: float
 
@@ -50,7 +49,7 @@ class VideoPlayerState(Serializable):
 
 @dataclass
 class VideoInfo(Serializable):
-    
+
     uuid: UUID
     url: str
     duration_millis: int
@@ -79,7 +78,7 @@ class VideoInfo(Serializable):
 
 @dataclass
 class FrameCapture(Serializable):
-    
+
     uuid: UUID
     elapsed_time_millis: int
     image_reference_uuid: UUID
@@ -105,7 +104,7 @@ class FrameCapture(Serializable):
 
 @dataclass
 class Localization(Serializable):
-    
+
     uuid: UUID
     concept: str
     elapsed_time_millis: int
