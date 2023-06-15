@@ -2,12 +2,14 @@
 Sharktopoda 2 client.
 """
 
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 from uuid import UUID
 
 from sharktopoda_client.dto import (FrameCapture, Localization, VideoInfo,
                                     VideoPlayerState)
+from sharktopoda_client.localization import LocalizationController
 from sharktopoda_client.log import LogMixin
 from sharktopoda_client.udp import Timeout, UDPClient, UDPServer
 
@@ -17,11 +19,15 @@ class SharktopodaClient(LogMixin):
     Sharktopoda 2 client.
     """
 
-    def __init__(self, send_host: str, send_port: int, receive_port: int):
+    def __init__(self, send_host: str, send_port: int, receive_port: int, localization_controller: LocalizationController):
         self._udp_client = UDPClient(send_host, send_port)
 
         self._udp_server = UDPServer(receive_port, self._handler)
         self._udp_server.start()
+        
+        self._localization_controller = localization_controller
+        
+        self._open_callbacks = {}
 
     def _handler(self, data: dict, addr: tuple) -> Optional[dict]:
         """
@@ -46,6 +52,11 @@ class SharktopodaClient(LogMixin):
                 # Opened a video
                 uuid = UUID(data["uuid"])
                 self.logger.info(f"Open video success: {uuid}")
+                
+                # Call the open callback and remove it
+                if uuid in self._open_callbacks:
+                    self._open_callbacks[uuid]()
+                    del self._open_callbacks[uuid]
             elif status == "failed":
                 # Failed to open a video
                 cause = data.get("cause", None)
@@ -61,6 +72,29 @@ class SharktopodaClient(LogMixin):
                 # Failed to capture frame
                 cause = data.get("cause", None)
                 self.logger.error(f"Failed to capture frame: {cause}")
+        
+        elif command == "add localizations" or command == "update localizations":
+            uuid = UUID(data["uuid"])
+            localizations = list(map(Localization.decode, data["localizations"]))
+            self.logger.info(f"Received {len(localizations)} localizations for video {uuid}")
+            self._localization_controller.add_update_localizations(uuid, localizations)
+        
+        elif command == "remove localizations":
+            uuid = UUID(data["uuid"])
+            localization_uuids = list(map(UUID, data["localizations"]))
+            self.logger.info(f"Received {len(localization_uuids)} localization removals for video {uuid}")
+            self._localization_controller.remove_localizations(uuid, localization_uuids)
+        
+        elif command == "clear localizations":
+            uuid = UUID(data["uuid"])
+            self.logger.info(f"Received localization clear for video {uuid}")
+            self._localization_controller.clear_collection(uuid)
+        
+        elif command == "select localizations":
+            uuid = UUID(data["uuid"])
+            localization_uuids = list(map(UUID, data["localizations"]))
+            self.logger.info(f"Received localization selection for video {uuid}")
+            self._localization_controller.select_localizations(uuid, localization_uuids)
 
     def _request(self, data: dict) -> dict:
         return self._udp_client.request(data)
@@ -84,13 +118,14 @@ class SharktopodaClient(LogMixin):
 
         self.logger.info("Connected to Sharktopoda 2")
 
-    def open(self, uuid: UUID, url: str):
+    def open(self, uuid: UUID, url: str, callback: Optional[callable] = None):
         """
         Open a video.
 
         Args:
             uuid: The UUID of the video.
             url: The URL of the video.
+            callback: An optional callback function to call when the video is opened.
         """
         open_command = {"command": "open", "uuid": str(uuid), "url": url}
         open_response = self._request(open_command)
@@ -100,7 +135,11 @@ class SharktopodaClient(LogMixin):
             self.logger.error("Failed to initiate open video")
             return
 
-        self.logger.info(f"Opened video {uuid} at {url}")
+        self.logger.info(f"Initiated open video {uuid} at {url}")
+        
+        # Store the callback
+        if callback is not None:
+            self._open_callbacks[uuid] = callback
 
     def close(self, uuid: UUID):
         """
