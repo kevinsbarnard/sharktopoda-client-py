@@ -2,14 +2,13 @@
 Sharktopoda 2 client.
 """
 
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import List, Optional
 from uuid import UUID
 
 from sharktopoda_client.dto import (FrameCapture, Localization, VideoInfo,
                                     VideoPlayerState)
-from sharktopoda_client.localization import LocalizationController
+from sharktopoda_client.localization import LocalizationController, NoOpLocalizationController
 from sharktopoda_client.log import LogMixin
 from sharktopoda_client.udp import Timeout, UDPClient, UDPServer
 
@@ -19,13 +18,22 @@ class SharktopodaClient(LogMixin):
     Sharktopoda 2 client.
     """
 
-    def __init__(self, send_host: str, send_port: int, receive_port: int, localization_controller: LocalizationController):
+    def __init__(self, send_host: str, send_port: int, receive_port: int, localization_controller: Optional[LocalizationController] = None):
+        """
+        Initialize the client.
+        
+        Args:
+            send_host: The IPv6 host to send UDP packets to.
+            send_port: The port to send UDP packets to.
+            receive_port: The port to receive UDP packets on.
+            localization_controller: The localization controller to use. If None, a NoOpLocalizationController will be used.
+        """
         self._udp_client = UDPClient(send_host, send_port)
 
         self._udp_server = UDPServer(receive_port, self._handler)
         self._udp_server.start()
         
-        self._localization_controller = localization_controller
+        self._localization_controller = localization_controller or NoOpLocalizationController()
         
         self._open_callbacks = {}
 
@@ -390,6 +398,8 @@ class SharktopodaClient(LogMixin):
             self.logger.error(f"Failed to add localizations: {cause}")
             return
 
+        self._localization_controller.add_update_localizations(localizations)
+        
         self.logger.info(f"Added {len(localizations)} localizations to video {uuid}")
 
     def remove_localizations(self, uuid: UUID, localization_uuids: List[UUID]):
@@ -413,6 +423,8 @@ class SharktopodaClient(LogMixin):
             self.logger.error(f"Failed to remove localizations: {cause}")
             return
 
+        self._localization_controller.remove_localizations(localization_uuids)
+        
         self.logger.info(
             f"Removed {len(localization_uuids)} localizations from video {uuid}"
         )
@@ -437,6 +449,8 @@ class SharktopodaClient(LogMixin):
             cause = update_localizations_response.get("cause", None)
             self.logger.error(f"Failed to update localizations: {cause}")
             return
+        
+        self._localization_controller.add_update_localizations(localizations)
 
         self.logger.info(f"Updated {len(localizations)} localizations of video {uuid}")
 
@@ -458,6 +472,8 @@ class SharktopodaClient(LogMixin):
             cause = clear_localizations_response.get("cause", None)
             self.logger.error(f"Failed to clear localizations: {cause}")
             return
+        
+        self._localization_controller.clear_collection(uuid)
 
         self.logger.info(f"Cleared localizations of video {uuid}")
 
@@ -480,6 +496,8 @@ class SharktopodaClient(LogMixin):
         if select_localizations_response["status"] != "ok":
             self.logger.error(f"Failed to select localizations")
             return
+        
+        self._localization_controller.clear_collection(uuid)
 
         self.logger.info(
             f"Selected {len(localization_uuids)} localizations of video {uuid}"

@@ -1,6 +1,6 @@
 
 from abc import ABC, abstractmethod
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 from uuid import UUID
 
 from sharktopoda_client.dto import Localization
@@ -11,7 +11,7 @@ class LocalizationController(ABC):
     Localization controller base class. Defines the interface for localization controllers.
     """
     
-    def __getitem__(self, uuids: Tuple[UUID, UUID]) -> Localization:
+    def __getitem__(self, uuids: Tuple[UUID, UUID]) -> Optional[Localization]:
         return self.get_localization(uuids[0], uuids[1])
     
     @abstractmethod
@@ -25,7 +25,7 @@ class LocalizationController(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def get_localization(self, collection_uuid: UUID, localization_uuid: UUID) -> Localization:
+    def get_localization(self, collection_uuid: UUID, localization_uuid: UUID) -> Optional[Localization]:
         """
         Get a localization from a collection.
 
@@ -34,7 +34,7 @@ class LocalizationController(ABC):
             localization_uuid: The UUID of the localization.
 
         Returns:
-            The localization.
+            The localization, or None if it does not exist.
         """
         raise NotImplementedError
     
@@ -70,3 +70,24 @@ class LocalizationController(ABC):
             localization_uuids: The UUIDs of the localizations to select.
         """
         raise NotImplementedError
+
+
+class NoOpLocalizationController(LocalizationController):
+    """
+    No-op localization controller. Does nothing. Useful for applications that don't care about localizations and just want to control the video.
+    """
+    
+    def clear_collection(self, uuid: UUID):
+        pass
+    
+    def get_localization(self, collection_uuid: UUID, localization_uuid: UUID) -> Optional[Localization]:
+        return None
+    
+    def add_update_localizations(self, collection_uuid: UUID, localizations: Iterable[Localization]):
+        pass
+    
+    def remove_localizations(self, collection_uuid: UUID, localization_uuids: Iterable[UUID]):
+        pass
+    
+    def select_localizations(self, collection_uuid: UUID, localization_uuids: Iterable[UUID]):
+        pass
