@@ -18,7 +18,7 @@ class SharktopodaClient(LogMixin):
     Sharktopoda 2 client.
     """
 
-    def __init__(self, send_host: str, send_port: int, receive_port: int, localization_controller: Optional[LocalizationController] = None):
+    def __init__(self, send_host: str, send_port: int, receive_port: int, localization_controller: Optional[LocalizationController] = None, timeout: float = 1.0):
         """
         Initialize the client.
         
@@ -27,8 +27,9 @@ class SharktopodaClient(LogMixin):
             send_port: The port to send UDP packets to.
             receive_port: The port to receive UDP packets on.
             localization_controller: The localization controller to use. If None, a NoOpLocalizationController will be used.
+            timeout: The timeout for UDP client requests.
         """
-        self._udp_client = UDPClient(send_host, send_port)
+        self._udp_client = UDPClient(send_host, send_port, timeout=timeout)
 
         self._udp_server = UDPServer(receive_port, self._handler)
         self._udp_server.start()
@@ -49,9 +50,11 @@ class SharktopodaClient(LogMixin):
 
         command = data.get("command", None)
 
+        def ok() -> dict:
+            return {"response": command, "status": "ok"}
+
         if command == "ping":
-            # Send a ping response
-            return {"response": "ping", "status": "ok"}
+            return ok()
 
         elif command == "open done":
             status = data.get("status", None)
@@ -85,47 +88,58 @@ class SharktopodaClient(LogMixin):
             localizations = list(map(Localization.decode, data["localizations"]))
             self.logger.info(f"Received {len(localizations)} localizations for video {uuid}")
             self._localization_controller.add_update_localizations(uuid, localizations)
+            return ok()
         
         elif command == "remove localizations":
             uuid = UUID(data["uuid"])
             localization_uuids = list(map(UUID, data["localizations"]))
             self.logger.info(f"Received {len(localization_uuids)} localization removals for video {uuid}")
             self._localization_controller.remove_localizations(uuid, localization_uuids)
+            return ok()
         
         elif command == "clear localizations":
             uuid = UUID(data["uuid"])
             self.logger.info(f"Received localization clear for video {uuid}")
             self._localization_controller.clear_collection(uuid)
+            return ok()
         
         elif command == "select localizations":
             uuid = UUID(data["uuid"])
             localization_uuids = list(map(UUID, data["localizations"]))
             self.logger.info(f"Received localization selection for video {uuid}")
             self._localization_controller.select_localizations(uuid, localization_uuids)
+            return ok()
 
-    def _request(self, data: dict) -> dict:
-        return self._udp_client.request(data)
+    def _request(self, data: dict) -> Optional[dict]:
+        try:
+            return self._udp_client.request(data)
+        except Timeout:
+            self.logger.error("Request to Sharktopoda 2 timed out")
+            return None
 
-    def connect(self):
+    def connect(self) -> bool:
         """
         Connect to the server.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         # Send the connect command and wait for the response
         connect_command = {"command": "connect", "port": self._udp_server.port}
-        try:
-            connect_response = self._request(connect_command)
-        except Timeout:
-            self.logger.error("Connect to Sharktopoda 2 timed out")
-            return
+        connect_response = self._request(connect_command)
+        if connect_response is None:
+            self.logger.error("Connection to Sharktopoda 2 timed out")
+            return False
 
         # Check the response status
         if connect_response["status"] != "ok":
             self.logger.error("Failed to connect to Sharktopoda 2")
-            return
+            return False
 
         self.logger.info("Connected to Sharktopoda 2")
+        return True
 
-    def open(self, uuid: UUID, url: str, callback: Optional[callable] = None):
+    def open(self, uuid: UUID, url: str, callback: Optional[callable] = None) -> bool:
         """
         Open a video.
 
@@ -133,6 +147,9 @@ class SharktopodaClient(LogMixin):
             uuid: The UUID of the video.
             url: The URL of the video.
             callback: An optional callback function to call when the video is opened.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         open_command = {"command": "open", "uuid": str(uuid), "url": url}
         open_response = self._request(open_command)
@@ -140,20 +157,25 @@ class SharktopodaClient(LogMixin):
         # Check the response status
         if open_response["status"] != "ok":
             self.logger.error("Failed to initiate open video")
-            return
+            return False
 
         self.logger.info(f"Initiated open video {uuid} at {url}")
         
         # Store the callback
         if callback is not None:
             self._open_callbacks[uuid] = callback
+        
+        return True
 
-    def close(self, uuid: UUID):
+    def close(self, uuid: UUID) -> bool:
         """
         Close a video.
 
         Args:
             uuid: The UUID of the video.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         close_command = {"command": "close", "uuid": str(uuid)}
         close_response = self._request(close_command)
@@ -162,16 +184,20 @@ class SharktopodaClient(LogMixin):
         if close_response["status"] != "ok":
             cause = close_response.get("cause", None)
             self.logger.error(f"Failed to close video: {cause}")
-            return
+            return False
 
         self.logger.info(f"Closed video {uuid}")
+        return True
 
-    def show(self, uuid: UUID):
+    def show(self, uuid: UUID) -> bool:
         """
         Show a video.
 
         Args:
             uuid: The UUID of the video.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         show_command = {"command": "show", "uuid": str(uuid)}
         show_response = self._request(show_command)
@@ -180,9 +206,10 @@ class SharktopodaClient(LogMixin):
         if show_response["status"] != "ok":
             cause = show_response.get("cause", None)
             self.logger.error(f"Failed to show video: {cause}")
-            return
+            return False
 
         self.logger.info(f"Showed video {uuid}")
+        return True
 
     def request_information(self) -> Optional[VideoInfo]:
         """
@@ -224,13 +251,16 @@ class SharktopodaClient(LogMixin):
             map(VideoInfo.decode, request_all_information_response.get("videos", []))
         )
 
-    def play(self, uuid: UUID, rate: float = 1.0):
+    def play(self, uuid: UUID, rate: float = 1.0) -> bool:
         """
         Play a video at a given rate.
 
         Args:
             uuid: The UUID of the video.
             rate: The playback rate.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         play_command = {"command": "play", "uuid": str(uuid), "rate": rate}
         play_response = self._request(play_command)
@@ -239,16 +269,20 @@ class SharktopodaClient(LogMixin):
         if play_response["status"] != "ok":
             cause = play_response.get("cause", None)
             self.logger.error(f"Failed to play video: {cause}")
-            return
+            return False
 
         self.logger.info(f"Played video {uuid} at {rate:.2f}x")
+        return True
 
-    def pause(self, uuid: UUID):
+    def pause(self, uuid: UUID) -> bool:
         """
         Pause a video.
 
         Args:
             uuid: The UUID of the video.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         pause_command = {"command": "pause", "uuid": str(uuid)}
         pause_response = self._request(pause_command)
@@ -257,9 +291,10 @@ class SharktopodaClient(LogMixin):
         if pause_response["status"] != "ok":
             cause = pause_response.get("cause", None)
             self.logger.error(f"Failed to pause video: {cause}")
-            return
+            return False
 
         self.logger.info(f"Paused video {uuid}")
+        return True
 
     def request_elapsed_time(self, uuid: UUID) -> Optional[float]:
         """
@@ -303,13 +338,16 @@ class SharktopodaClient(LogMixin):
 
         return VideoPlayerState.decode(request_player_state_response)
 
-    def seek_elapsed_time(self, uuid: UUID, elapsed_time_millis: int):
+    def seek_elapsed_time(self, uuid: UUID, elapsed_time_millis: int) -> bool:
         """
         Seek a video to a given elapsed time.
 
         Args:
             uuid: The UUID of the video.
             elapsed_time_millis: The elapsed time in milliseconds.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         seek_elapsed_time_command = {
             "command": "seek elapsed time",
@@ -322,17 +360,21 @@ class SharktopodaClient(LogMixin):
         if seek_elapsed_time_response["status"] != "ok":
             cause = seek_elapsed_time_response.get("cause", None)
             self.logger.error(f"Failed to seek elapsed time: {cause}")
-            return
+            return False
 
         self.logger.info(f"Seeked video {uuid} to {elapsed_time_millis} ms")
+        return True
 
-    def frame_advance(self, uuid: UUID, direction: int):
+    def frame_advance(self, uuid: UUID, direction: int) -> bool:
         """
         Advance a video by one frame.
 
         Args:
             uuid: The UUID of the video.
             direction: The direction to advance the frame.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         frame_advance_command = {
             "command": "frame advance",
@@ -345,11 +387,12 @@ class SharktopodaClient(LogMixin):
         if frame_advance_response["status"] != "ok":
             cause = frame_advance_response.get("cause", None)
             self.logger.error(f"Failed to advance frame: {cause}")
-            return
+            return False
 
         self.logger.info(
             f"Advanced frame of video {uuid} {'forward' if direction > 0 else 'backward'}"
         )
+        return True
 
     def frame_capture(
         self, uuid: UUID, image_location: Path, image_reference_uuid: UUID
@@ -361,6 +404,9 @@ class SharktopodaClient(LogMixin):
             uuid: The UUID of the video.
             image_location: The location to save the image.
             image_reference_uuid: The UUID of the image reference.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         frame_capture_command = {
             "command": "frame capture",
@@ -374,15 +420,20 @@ class SharktopodaClient(LogMixin):
         if frame_capture_response["status"] != "ok":
             cause = frame_capture_response.get("cause", None)
             self.logger.error(f"Failed to initiate frame capture: {cause}")
-            return
+            return False
 
-    def add_localizations(self, uuid: UUID, localizations: List[Localization]):
+        return True
+
+    def add_localizations(self, uuid: UUID, localizations: List[Localization]) -> bool:
         """
         Add localizations to a video.
 
         Args:
             uuid: The UUID of the video.
             localizations: The localizations to add.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         add_localizations_command = {
             "command": "add localizations",
@@ -395,19 +446,23 @@ class SharktopodaClient(LogMixin):
         if add_localizations_response["status"] != "ok":
             cause = add_localizations_response.get("cause", None)
             self.logger.error(f"Failed to add localizations: {cause}")
-            return
+            return False
 
         self._localization_controller.add_update_localizations(localizations)
         
         self.logger.info(f"Added {len(localizations)} localizations to video {uuid}")
+        return True
 
-    def remove_localizations(self, uuid: UUID, localization_uuids: List[UUID]):
+    def remove_localizations(self, uuid: UUID, localization_uuids: List[UUID]) -> bool:
         """
         Remove localizations from a video.
 
         Args:
             uuid: The UUID of the video.
             localization_uuids: The UUIDs of the localizations to remove.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         remove_localizations_command = {
             "command": "remove localizations",
@@ -420,21 +475,25 @@ class SharktopodaClient(LogMixin):
         if remove_localizations_response["status"] != "ok":
             cause = remove_localizations_response.get("cause", None)
             self.logger.error(f"Failed to remove localizations: {cause}")
-            return
+            return False
 
         self._localization_controller.remove_localizations(localization_uuids)
         
         self.logger.info(
             f"Removed {len(localization_uuids)} localizations from video {uuid}"
         )
+        return True
 
-    def update_localizations(self, uuid: UUID, localizations: List[Localization]):
+    def update_localizations(self, uuid: UUID, localizations: List[Localization]) -> bool:
         """
         Update localizations of a video.
 
         Args:
             uuid: The UUID of the video.
             localizations: The localizations to update.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         update_localizations_command = {
             "command": "update localizations",
@@ -447,18 +506,22 @@ class SharktopodaClient(LogMixin):
         if update_localizations_response["status"] != "ok":
             cause = update_localizations_response.get("cause", None)
             self.logger.error(f"Failed to update localizations: {cause}")
-            return
+            return False
         
         self._localization_controller.add_update_localizations(localizations)
 
         self.logger.info(f"Updated {len(localizations)} localizations of video {uuid}")
+        return True
 
-    def clear_localizations(self, uuid: UUID):
+    def clear_localizations(self, uuid: UUID) -> bool:
         """
         Clear all localizations of a video.
 
         Args:
             uuid: The UUID of the video.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         clear_localizations_command = {
             "command": "clear localizations",
@@ -470,19 +533,23 @@ class SharktopodaClient(LogMixin):
         if clear_localizations_response["status"] != "ok":
             cause = clear_localizations_response.get("cause", None)
             self.logger.error(f"Failed to clear localizations: {cause}")
-            return
+            return False
         
         self._localization_controller.clear_collection(uuid)
 
         self.logger.info(f"Cleared localizations of video {uuid}")
+        return True
 
-    def select_localizations(self, uuid: UUID, localization_uuids: List[UUID]):
+    def select_localizations(self, uuid: UUID, localization_uuids: List[UUID]) -> bool:
         """
         Select localizations of a video.
 
         Args:
             uuid: The UUID of the video.
             localization_uuids: The UUIDs of the localizations to select.
+        
+        Returns:
+            True if the operation was successful, False otherwise.
         """
         select_localizations_command = {
             "command": "select localizations",
@@ -494,10 +561,11 @@ class SharktopodaClient(LogMixin):
         # Check the response status
         if select_localizations_response["status"] != "ok":
             self.logger.error(f"Failed to select localizations")
-            return
+            return False
         
         self._localization_controller.clear_collection(uuid)
 
         self.logger.info(
             f"Selected {len(localization_uuids)} localizations of video {uuid}"
         )
+        return True

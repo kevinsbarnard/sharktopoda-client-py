@@ -1,5 +1,5 @@
 import json
-from socket import AF_INET6, SOCK_DGRAM, socket
+from socket import AF_INET6, SOCK_DGRAM, socket, timeout
 from threading import Thread
 
 from sharktopoda_client.log import LogMixin
@@ -18,11 +18,13 @@ class EphemeralSocket:
     Ephemeral socket context manager. Creates a new socket for a send/receive operation.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, timeout: float = 1.0) -> None:
         self._socket = None
+        self._timeout = timeout
 
     def __enter__(self):
         self._socket = socket(AF_INET6, SOCK_DGRAM)
+        self._socket.settimeout(self._timeout)
         return self._socket
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -129,12 +131,13 @@ class UDPClient(LogMixin):
     """
 
     def __init__(
-        self, server_host: str, server_port: int, buffer_size: int = 4096
+        self, server_host: str, server_port: int, buffer_size: int = 4096, timeout: float = 1.0
     ) -> None:
         self._server_host = server_host
         self._server_port = server_port
 
         self._buffer_size = buffer_size
+        self._timeout = timeout
 
     def request(self, data: dict) -> dict:
         """
@@ -150,7 +153,7 @@ class UDPClient(LogMixin):
         data_json = json.dumps(data)
         data_bytes = data_json.encode("utf-8")
 
-        with EphemeralSocket() as sock:
+        with EphemeralSocket(timeout=self._timeout) as sock:
             # Send
             sock.sendto(data_bytes, (self._server_host, self._server_port))
             self.logger.debug(
@@ -158,8 +161,12 @@ class UDPClient(LogMixin):
             )
 
             # Receive
-            response_data_bytes, addr = sock.recvfrom(self._buffer_size)
-            self.logger.debug(f"Received UDP datagram {data} from {addr}")
+            try:
+                response_data_bytes, addr = sock.recvfrom(self._buffer_size)
+                self.logger.debug(f"Received UDP datagram {data} from {addr}")
+            except timeout:
+                self.logger.warning(f"UDP receive timed out")
+                raise Timeout()
 
         # Decode
         response_data_json = response_data_bytes.decode("utf-8")
