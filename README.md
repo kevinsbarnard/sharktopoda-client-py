@@ -1,6 +1,6 @@
 # sharktopoda-client-py
 
-**This branch is for the Sharktopoda 2 video player, see the [spec](https://github.com/mbari-org/Sharktopoda/tree/main/docs/requirements/Sharktopoda%202)**
+**This branch is for the Sharktopoda 2 video player, see the [spec](https://github.com/mbari-org/Sharktopoda/blob/main/Requirements/UDP_Remote_Protocol.md)**
 
 [Sharktopoda client API](https://github.com/mbari-media-management/vcr4j/vcr4j-sharktopoda-client), translated to Python.
 

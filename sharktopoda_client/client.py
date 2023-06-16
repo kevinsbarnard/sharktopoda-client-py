@@ -48,13 +48,12 @@ class SharktopodaClient(LogMixin):
         self.logger.debug(f"Received UDP datagram from {addr}: {data}")
 
         command = data.get("command", None)
-        response = data.get("response", None)
 
         if command == "ping":
             # Send a ping response
             return {"response": "ping", "status": "ok"}
 
-        elif response == "open done":
+        elif command == "open done":
             status = data.get("status", None)
             if status == "ok":
                 # Opened a video
@@ -70,7 +69,7 @@ class SharktopodaClient(LogMixin):
                 cause = data.get("cause", None)
                 self.logger.error(f"Failed to open video: {cause}")
 
-        elif response == "frame capture done":
+        elif command == "frame capture done":
             status = data.get("status", None)
             if status == "ok":
                 # Captured frame
