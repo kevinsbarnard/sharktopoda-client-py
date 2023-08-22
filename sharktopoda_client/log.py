@@ -35,4 +35,5 @@ class LogMixin:
         """
         if getattr(self, "_logger", None) is None:  # lazy instantiation
             self._logger = get_logger(self.__class__.__name__)
+            self._logger.addHandler(logging.NullHandler())  # Ensure no errors if no handlers are configured
         return self._logger
