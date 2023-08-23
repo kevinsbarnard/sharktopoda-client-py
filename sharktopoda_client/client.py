@@ -448,7 +448,7 @@ class SharktopodaClient(LogMixin):
             self.logger.error(f"Failed to add localizations: {cause}")
             return False
 
-        self._localization_controller.add_update_localizations(localizations)
+        self._localization_controller.add_update_localizations(uuid, localizations)
         
         self.logger.info(f"Added {len(localizations)} localizations to video {uuid}")
         return True
@@ -477,7 +477,7 @@ class SharktopodaClient(LogMixin):
             self.logger.error(f"Failed to remove localizations: {cause}")
             return False
 
-        self._localization_controller.remove_localizations(localization_uuids)
+        self._localization_controller.remove_localizations(uuid, localization_uuids)
         
         self.logger.info(
             f"Removed {len(localization_uuids)} localizations from video {uuid}"
@@ -508,7 +508,7 @@ class SharktopodaClient(LogMixin):
             self.logger.error(f"Failed to update localizations: {cause}")
             return False
         
-        self._localization_controller.add_update_localizations(localizations)
+        self._localization_controller.add_update_localizations(uuid, localizations)
 
         self.logger.info(f"Updated {len(localizations)} localizations of video {uuid}")
         return True
