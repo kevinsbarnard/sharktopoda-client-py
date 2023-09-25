@@ -1,5 +1,5 @@
 import json
-from socket import AF_INET6, SOCK_DGRAM, socket, timeout
+from socket import AF_INET, AF_INET6, SOCK_DGRAM, socket, timeout
 from threading import Thread
 
 from sharktopoda_client.log import LogMixin
@@ -18,12 +18,13 @@ class EphemeralSocket:
     Ephemeral socket context manager. Creates a new socket for a send/receive operation.
     """
 
-    def __init__(self, timeout: float = 1.0) -> None:
+    def __init__(self, timeout: float = 1.0, ipv6: bool = False) -> None:
         self._socket = None
         self._timeout = timeout
+        self._ipv6 = ipv6
 
     def __enter__(self):
-        self._socket = socket(AF_INET6, SOCK_DGRAM)
+        self._socket = socket(AF_INET6 if self._ipv6 else AF_INET, SOCK_DGRAM)
         self._socket.settimeout(self._timeout)
         return self._socket
 
@@ -127,7 +128,7 @@ class UDPServer(LogMixin):
 
 class UDPClient(LogMixin):
     """
-    IPv6 UDP client. Sends and receives data encoded as JSON.
+    UDP client. Sends and receives data encoded as JSON.
     """
 
     def __init__(
@@ -138,6 +139,13 @@ class UDPClient(LogMixin):
 
         self._buffer_size = buffer_size
         self._timeout = timeout
+
+    @property
+    def _ipv6(self) -> bool:
+        """
+        Whether the server host is an IPv6 address. Otherwise, IPv4 is assumed.
+        """
+        return ":" in self._server_host
 
     def request(self, data: dict) -> dict:
         """
@@ -153,7 +161,7 @@ class UDPClient(LogMixin):
         data_json = json.dumps(data)
         data_bytes = data_json.encode("utf-8")
 
-        with EphemeralSocket(timeout=self._timeout) as sock:
+        with EphemeralSocket(timeout=self._timeout, ipv6=self._ipv6) as sock:
             # Send
             sock.sendto(data_bytes, (self._server_host, self._server_port))
             self.logger.debug(
