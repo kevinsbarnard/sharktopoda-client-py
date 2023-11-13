@@ -67,7 +67,10 @@ class UDPServer(LogMixin):
 
         while self._ok:
             # Receive
-            request_bytes, addr = self.socket.recvfrom(4096)
+            try:
+                request_bytes, addr = self.socket.recvfrom(4096)
+            except timeout:
+                continue
             self.logger.debug("Received UDP datagram {data} from {addr}")
 
             # Decode
@@ -107,6 +110,11 @@ class UDPServer(LogMixin):
         Stop the UDP server.
         """
         self._ok = False
+        
+        # Wait for thread to exit and close socket
+        self.logger.debug("Waiting for UDP server thread to exit")
+        self._thread.join()
+        self._close()
 
     @property
     def socket(self):
@@ -117,13 +125,21 @@ class UDPServer(LogMixin):
             self._socket = socket(AF_INET6, SOCK_DGRAM)
             host = ""  # listen on all interfaces
             self._socket.bind((host, self._port))
-            self.logger.info(f"Opened UDP socket on {host}:{self._port}")
+            self._socket.settimeout(1.0)
+            self.logger.debug(f"Opened UDP socket on {host}:{self._port}")
         return self._socket
 
-    def __del__(self):
+    def _close(self) -> None:
+        """
+        Close the UDP socket if it is open, and set it to None.
+        """
         if self._socket is not None:
             self._socket.close()
-            self.logger.info("Closed UDP socket")
+            self._socket = None
+            self.logger.debug("Closed UDP socket")
+
+    def __del__(self):
+        self._close()
 
 
 class UDPClient(LogMixin):

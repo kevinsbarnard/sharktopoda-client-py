@@ -32,6 +32,7 @@ class SharktopodaClient(LogMixin):
         self._udp_client = UDPClient(send_host, send_port, timeout=timeout)
 
         self._udp_server = UDPServer(receive_port, self._handler)
+        assert self._udp_server.socket is not None  # force socket creation, may raise exception
         self._udp_server.start()
         
         self._localization_controller = localization_controller or NoOpLocalizationController()
@@ -569,3 +570,12 @@ class SharktopodaClient(LogMixin):
             f"Selected {len(localization_uuids)} localizations of video {uuid}"
         )
         return True
+
+    def stop_server(self):
+        """
+        Stop the UDP server.
+        """
+        self._udp_server.stop()
+
+    def __del__(self):
+        self.stop_server()
