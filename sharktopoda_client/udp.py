@@ -111,9 +111,12 @@ class UDPServer(LogMixin):
         """
         self._ok = False
         
-        # Wait for thread to exit and close socket
-        self.logger.debug("Waiting for UDP server thread to exit")
-        self._thread.join()
+        # Wait for thread to exit
+        if self._thread is not None:
+            self.logger.debug("Waiting for UDP server thread to exit")
+            self._thread.join()
+        
+        # Close socket
         self._close()
 
     @property
